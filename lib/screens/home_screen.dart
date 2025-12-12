@@ -104,10 +104,13 @@ class _EncoderHomePageState extends State<EncoderHomePage> with WindowListener {
   void _showUploadControls() {
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (context) =>
-          UploadControlsSheet(activeUploader: _queueService.activeUploader),
+      backgroundColor: Colors.transparent,
+      builder: (context) => UploadControlsSheet(
+        encoderService: _queueService.encoderService,
+
+        activeUploader: _queueService.activeUploader,
+      ),
     );
   }
 

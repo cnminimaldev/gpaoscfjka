@@ -205,11 +205,11 @@ class GoogleDriveService {
       final result = await api.files
           .create(driveFile, uploadMedia: media, $fields: 'id')
           .timeout(
-            const Duration(minutes: 3),
+            const Duration(minutes: 2),
             onTimeout: () {
               // Nếu quá 3 phút mà chưa xong 1 file (thường file ts/png rất nhẹ),
               // thì coi như mạng lag, ném lỗi ra để UploadManager bắt được và retry.
-              throw TimeoutException("Upload timed out after 3 minutes");
+              throw TimeoutException("Upload timed out after 2 minutes");
             },
           );
       // -------------------------------------

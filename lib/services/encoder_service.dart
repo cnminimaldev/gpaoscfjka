@@ -45,7 +45,22 @@ class EncoderService {
   int _totalTasks = 1;
   int _currentTaskIndex = 0;
 
-  EncoderService(this._isarService);
+  EncoderService(this._isarService) {
+    _loadSavedConcurrency();
+  }
+
+  Future<void> _loadSavedConcurrency() async {
+    final savedLimit = await _configService.getConcurrentLimit();
+    globalConcurrentLimit.value = savedLimit;
+  }
+
+  void setGlobalConcurrency(int newValue) {
+    // 1. Cập nhật giá trị hiển thị UI
+    globalConcurrentLimit.value = newValue;
+
+    // 2. Lưu vào ổ cứng để lần sau mở lại vẫn còn
+    _configService.setConcurrentLimit(newValue);
+  }
 
   String _getQualityName(int quality) {
     if (quality == 720) return "hd";

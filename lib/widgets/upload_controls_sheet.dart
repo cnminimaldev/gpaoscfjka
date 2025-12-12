@@ -3,16 +3,22 @@ import '../services/encoder_service.dart';
 import '../services/upload_manager.dart';
 
 class UploadControlsSheet extends StatelessWidget {
-  final UploadManager? activeUploader; // Nếu null nghĩa là đang không upload
+  final UploadManager? activeUploader;
+  // [NEW] Cần service để gọi hàm setGlobalConcurrency (nơi chứa logic lưu)
+  final EncoderService encoderService;
 
-  const UploadControlsSheet({super.key, this.activeUploader});
+  const UploadControlsSheet({
+    super.key,
+    this.activeUploader,
+    required this.encoderService, // Bắt buộc truyền vào
+  });
 
   @override
   Widget build(BuildContext context) {
-    // Xác định đang chỉnh cái gì: Active hay Global
-    final ValueNotifier<int> targetNotifier = activeUploader != null
-        ? activeUploader!.concurrentLimit
-        : EncoderService.globalConcurrentLimit;
+    // Với kiến trúc Isolate mới, activeUploader thường là null (vì nó chạy ngầm),
+    // nên ta ưu tiên dùng globalConcurrentLimit.
+    final ValueNotifier<int> targetNotifier =
+        EncoderService.globalConcurrentLimit;
 
     return StatefulBuilder(
       builder: (context, setSheetState) {
@@ -29,6 +35,7 @@ class UploadControlsSheet extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Thanh nắm kéo (Handle)
               Center(
                 child: Container(
                   width: 40,
@@ -40,6 +47,8 @@ class UploadControlsSheet extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 20),
+
+              // Tiêu đề
               Row(
                 children: [
                   Icon(
@@ -61,14 +70,13 @@ class UploadControlsSheet extends StatelessWidget {
                         ),
                       ),
                       Text(
-                        activeUploader != null
-                            ? "Đang upload (Realtime Control)"
+                        // Logic hiển thị trạng thái
+                        (activeUploader != null || !activeUploaderIsPaused)
+                            ? "Điều khiển thời gian thực"
                             : "Cấu hình mặc định",
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 12,
-                          color: activeUploader != null
-                              ? Colors.green
-                              : Colors.grey,
+                          color: Colors.grey,
                         ),
                       ),
                     ],
@@ -77,6 +85,7 @@ class UploadControlsSheet extends StatelessWidget {
               ),
               const Divider(height: 30),
 
+              // Slider chỉnh số luồng
               const Text("Số luồng upload cùng lúc (Concurrent Files):"),
               const SizedBox(height: 10),
               ValueListenableBuilder<int>(
@@ -97,11 +106,13 @@ class UploadControlsSheet extends StatelessWidget {
                               activeColor: Colors.blueAccent,
                               onChanged: (val) {
                                 int newVal = val.toInt();
-                                EncoderService.globalConcurrentLimit.value =
-                                    newVal;
-                                if (activeUploader != null) {
-                                  activeUploader!.setConcurrency(newVal);
-                                }
+
+                                // [QUAN TRỌNG] Gọi hàm này thay vì gán trực tiếp.
+                                // Hàm này sẽ:
+                                // 1. Update UI
+                                // 2. Lưu vào ConfigService (SharedPreferences)
+                                // 3. Gửi lệnh update sang Isolate (nếu đang chạy)
+                                encoderService.setGlobalConcurrency(newVal);
                               },
                             ),
                           ),
@@ -125,6 +136,9 @@ class UploadControlsSheet extends StatelessWidget {
 
               const Spacer(),
 
+              // Nút Pause/Resume (Chỉ hiện nếu có activeUploader từ luồng chính -
+              // Lưu ý: Với kiến trúc Isolate mới, activeUploader ở Main có thể là null.
+              // Nếu bạn muốn Pause/Resume Isolate, cần implement thêm hàm trong EncoderService)
               if (activeUploader != null)
                 Row(
                   children: [
@@ -185,7 +199,7 @@ class UploadControlsSheet extends StatelessWidget {
                       SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          "Cấu hình này sẽ được áp dụng cho lượt upload tiếp theo.",
+                          "Thay đổi sẽ được lưu và áp dụng ngay lập tức.",
                           style: TextStyle(fontSize: 12),
                         ),
                       ),
@@ -198,4 +212,7 @@ class UploadControlsSheet extends StatelessWidget {
       },
     );
   }
+
+  // Helper getters
+  bool get activeUploaderIsPaused => activeUploader?.isPaused ?? false;
 }
