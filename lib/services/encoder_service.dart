@@ -301,16 +301,28 @@ class EncoderService {
             continue;
           }
 
+          int lastUpdateTimestamp = 0;
+
           await uploadManager.processUpload(
             subFolderPng,
             m3u8Path,
             folderNameOnDrive,
             onProgress: (percent) {
-              _isarService.updateProgress(item.id, percent);
-              int percentInt = (percent * 100).toInt();
-              String logText =
-                  "Uploading $qName ($uploadIdx/${targetQualities.length}): $percentInt%";
-              _isarService.updateInfoLog(item.id, logText);
+              final now = DateTime.now().millisecondsSinceEpoch;
+
+              if (now - lastUpdateTimestamp > 1000 || percent >= 1.0) {
+                lastUpdateTimestamp = now;
+
+                // Thực hiện ghi DB
+                _isarService.updateProgress(item.id, percent);
+
+                int percentInt = (percent * 100).toInt();
+                String logText =
+                    "Uploading $qName ($uploadIdx/${targetQualities.length}): $percentInt%";
+
+                // Mẹo: Log cũng rất nặng, chỉ nên log các mốc quan trọng (VD: mỗi 5-10%)
+                _isarService.updateInfoLog(item.id, logText);
+              }
             },
           );
         }

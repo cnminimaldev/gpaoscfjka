@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:googleapis/drive/v3.dart' as drive;
@@ -195,13 +196,23 @@ class GoogleDriveService {
         ..parents = [parentFolderId];
 
       final len = localFile.lengthSync();
-      final media = drive.Media(localFile.openRead(), len);
 
-      final result = await api.files.create(
-        driveFile,
-        uploadMedia: media,
-        $fields: 'id',
-      );
+      // Mở stream đọc file
+      final stream = localFile.openRead();
+      final media = drive.Media(stream, len);
+
+      // --- SỬA TẠI ĐÂY: THÊM .timeout() ---
+      final result = await api.files
+          .create(driveFile, uploadMedia: media, $fields: 'id')
+          .timeout(
+            const Duration(minutes: 3),
+            onTimeout: () {
+              // Nếu quá 3 phút mà chưa xong 1 file (thường file ts/png rất nhẹ),
+              // thì coi như mạng lag, ném lỗi ra để UploadManager bắt được và retry.
+              throw TimeoutException("Upload timed out after 3 minutes");
+            },
+          );
+      // -------------------------------------
 
       if (activeAccount != null && result.id != null) {
         await _isarService.updateUploadQuota(activeAccount.id, len);
@@ -210,6 +221,8 @@ class GoogleDriveService {
       return result.id;
     } catch (e) {
       print("Lỗi upload file ${localFile.path}: $e");
+      // Khi ném lỗi (bao gồm TimeoutException), hàm này sẽ trả về null
+      // UploadManager sẽ nhận được null -> vào case catch -> kích hoạt Retry.
       return null;
     }
   }
